@@ -1,0 +1,48 @@
+{
+  "provides": "rlp",
+  "targets": {
+	"macos-x64": {
+	  "link-args": [],
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"macos-aarch64": {
+	  "link-args": [],
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"linux-x64": {
+	  "link-args": [],
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"linux-aarch64": {
+	  "link-args": [],
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"freebsd-x64": {
+	  "link-args": [],
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"windows-x64": {
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ],
+	  "wincrt": "none"
+	},
+	"windows-aarch64": {
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ],
+	  "wincrt": "none"
+	},
+	"wasm32": {
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	},
+	"emscripten": {
+	  "dependencies": [],
+	  "linked-libraries": [ "raylib6" ]
+	}
+  }
+}

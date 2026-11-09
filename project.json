@@ -1,0 +1,87 @@
+{
+  "authors":  [ "Bigfoot71 <victor.lejuez@protonmail.ch>" ],
+  "version": "0.1.0",
+
+  "dependency-search-paths": [ "lib" ],
+  "dependencies": [ "raylib6" ],
+  "warnings": [ "no-unused" ],
+  "sources": [ "rlm.c3l/**" ],
+  "build-dir": "build",
+  "output": "build",
+  "langrev": "1",
+
+  "debug-info": "full",
+  "fp-math": "fast",
+  "cpu": "generic",
+  "safe": true,
+  "opt": "O0",
+
+  "targets": {
+    "scene": {
+      "name": "rlm-scene",
+      "type": "executable",
+      "sources":  [ "examples/scene.c3" ],
+      "output": "build/scene"
+    },
+    "linux-x64-debug": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "linux-x64",
+      "output": "build/linux-x64-debug"
+    },
+    "linux-x64-release": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "linux-x64",
+      "output": "build/linux-x64-release",
+      "debug-info": "none",
+      "safe": false,
+      "opt": "O2"
+    },
+    "windows-x64-debug": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "windows-x64",
+      "output": "build/windows-x64-debug"
+    },
+    "windows-x64-release": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "windows-x64",
+      "output": "build/windows-x64-release",
+      "debug-info": "none",
+      "safe": false,
+      "opt": "O2"
+    },
+    "windows-aarch64-debug": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "windows-aarch64",
+      "output": "build/windows-aarch64-debug"
+    },
+    "windows-aarch64-release": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "windows-aarch64",
+      "output": "build/windows-aarch64-release",
+      "debug-info": "none",
+      "safe": false,
+      "opt": "O2"
+    },
+    "macos-aarch64-debug": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "macos-aarch64",
+      "output": "build/macos-aarch64-debug"
+    },
+    "macos-aarch64-release": {
+      "name": "rlm",
+      "type": "static-lib",
+      "target": "macos-aarch64",
+      "output": "build/macos-aarch64-release",
+      "debug-info": "none",
+      "safe": false,
+      "opt": "O2"
+    }
+  }
+}
