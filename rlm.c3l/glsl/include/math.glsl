@@ -52,4 +52,21 @@ float dot2(vec4 x)
     return dot(x, x);
 }
 
+mat3 basis(vec3 n)
+{
+    float s = (n.z >= 0.0) ? 1.0 : -1.0;
+    float a = -1.0 / (s + n.z);
+    float b = n.x * n.y * a;
+
+    vec3 t  = vec3(1.0 + s * n.x * n.x * a, s * b, -s * n.x);
+    vec3 bt = vec3(b, s + n.y * n.y * a, -n.y);
+
+    return mat3(t, bt, n);
+}
+
+vec3 offsetAlong(vec3 p, vec3 n, float bias)
+{
+    return p + n * bias;
+}
+
 #endif // MATH_GLSL
