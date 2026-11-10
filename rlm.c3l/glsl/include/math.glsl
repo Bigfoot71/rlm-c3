@@ -54,6 +54,9 @@ float dot2(vec4 x)
 
 mat3 basis(vec3 n)
 {
+    // Pixar's (Duff et al.) method
+    // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+
     float s = (n.z >= 0.0) ? 1.0 : -1.0;
     float a = -1.0 / (s + n.z);
     float b = n.x * n.y * a;
