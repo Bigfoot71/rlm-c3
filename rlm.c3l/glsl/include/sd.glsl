@@ -289,12 +289,6 @@ Sd sdOctahedron(vec3 p, float s, int mat)
     return Sd(length(vec3(q.x, q.y - s + k, q.z - k)), mat);
 }
 
-Sd sdOctahedron(vec3 p, float s, int mat)
-{
-    p = abs(p);
-    return Sd((p.x + p.y + p.z - s) * 0.57735027, mat);
-}
-
 Sd sdPyramid(vec3 p, float h, int mat)
 {
     float m2 = h * h + 0.25;
