@@ -249,7 +249,7 @@ Sd sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2, int mat)
     return Sd((sqrt(x2 * a2 * il2) + y * rr) * il2 - r1, mat);
 }
 
-Sd sdVesicaSegment(in vec3 p, in vec3 a, in vec3 b, in float w, int mat)
+Sd sdVesicaSegment(vec3 p, vec3 a, vec3 b, float w, int mat)
 {
     vec3  c = (a + b) * 0.5;
     float l = length(b - a);
