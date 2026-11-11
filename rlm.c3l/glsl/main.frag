@@ -1,3 +1,6 @@
+// Refs:
+// - https://kev.town/raymarching-toolkit/media/enhanced_sphere_tracing.pdf
+
 // ================================
 // Precision
 // ================================
