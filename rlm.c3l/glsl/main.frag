@@ -1,9 +1,20 @@
 // ================================
-// In/Out - Varyings / Fragments
+// Precision
 // ================================
 
-<VARY> vec2 UV;
-<FRAG> vec4 COLOR;
+#ifdef GL_ES
+#   ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+#   else
+        precision mediump float;
+#   endif
+#endif
+
+// ================================
+// In - Varyings
+// ================================
+
+VARY vec2 UV;
 
 // ================================
 // Built-In Uniforms
@@ -224,7 +235,7 @@ void main()
 
         float t0 = marchBeam(makeRay(pix));
 
-        COLOR = packFloat(clamp(t0 / CAM_FAR, 0.0, 1.0) * PACK_SCALE);
+        FRAG_COLOR = packFloat(clamp(t0 / CAM_FAR, 0.0, 1.0) * PACK_SCALE);
     }
     else
     if (CURRENT_PASS == 1) // SHADING PASS
@@ -233,15 +244,15 @@ void main()
         vec2 tile = min(floor(pix / BEAM_TILE), BEAM_RES - 1.0);
         vec2 buv  = (tile + 0.5) / BEAM_TEX_SIZE;
 
-        float t0 = unpackFloat(TEXTURE(BEAM_TEX, buv)) / PACK_SCALE * CAM_FAR;
+        float t0 = unpackFloat(TEXTURE_2D(BEAM_TEX, buv)) / PACK_SCALE * CAM_FAR;
 
         Ray ray = makeRay(pix);
         Hit hit = march(ray, t0);
 
-        COLOR = shade(ray, hit, CONE);
+        FRAG_COLOR = shade(ray, hit, CONE);
 
         #if SRGB_OUTPUT == 1
-            COLOR.rgb = sqrt(max(COLOR.rgb, 0.0));
+            FRAG_COLOR.rgb = sqrt(max(FRAG_COLOR.rgb, 0.0));
         #endif
     }
 }

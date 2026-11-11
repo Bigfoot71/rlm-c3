@@ -1,5 +1,5 @@
-<ATTR> vec2 POS;
-<VARY> vec2 UV;
+ATTR vec2 POS;
+VARY vec2 UV;
 
 void main()
 {

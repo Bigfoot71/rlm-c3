@@ -99,17 +99,18 @@ fn RLMShader*? RLMShader.init(&self, String code) => @pool()
 		return COMPILE_FAILED~;
 	}
 
-	Dialect g = get_dialect()!;
+	RLGlVersion ver = (RLGlVersion)rl::gl_get_version();
+	ShaderHeaders h = get_headers(ver)!;
 
-	String user = expand_includes(code);
+	DString vs = dstring::temp_with_capacity(h.vert.len + main_vert.len + 2);
+	vs.append(h.vert);
+	vs.append_char('\n');
+	vs.append(main_vert);
 
-	DString vs = dstring::temp_with_capacity(main_vert.len + 256);
-	vs.append(g.header_vs);
-	vs.append(apply_tags(main_vert, g.attr, g.vary_out, g.frag));
-
-	String fs_body = apply_tags(main_frag, g.attr, g.vary_in, g.frag).treplace(USER_MARKER, user);
-	DString fs = dstring::temp_with_capacity(fs_body.len + 256);
-	fs.append(g.header_fs);
+	String fs_body = main_frag.treplace(USER_MARKER, expand_includes(code));
+	DString fs = dstring::temp_with_capacity(h.frag.len + fs_body.len + 2);
+	fs.append(h.frag);
+	fs.append_char('\n');
 	fs.append(fs_body);
 
 	self.id = rl::gl_load_shader_program(vs.zstr_view(), fs.zstr_view());
@@ -328,59 +329,32 @@ fn RLMUniform* get_uniform(RLMShader* shader, String name) @local
 // Local: Source Generation
 // ================================
 
-struct Dialect @local
+struct ShaderHeaders @local
 {
-	String header_vs; // #version + stage defines (vertex)
-	String header_fs; // #version + precision + stage defines (fragment)
-	String attr;      // <ATTR>
-	String vary_out;  // <VARY> in the vertex stage
-	String vary_in;   // <VARY> in the fragment stage
-	String frag;      // <FRAG>
+	String vert;
+	String frag;
 }
 
-fn Dialect? get_dialect() @local
+fn ShaderHeaders? get_headers(RLGlVersion ver) @local
 {
-	RLGlVersion ver = (RLGlVersion)rl::gl_get_version();
-	Dialect d;
+	switch (ver)
+	{
+		case OPENGL_21:
+			return { .vert = SHADER_HEADER_VERT_GL21, .frag = SHADER_HEADER_FRAG_GL21 };
 
-	if (ver == RLGlVersion.OPENGL_33 || ver == RLGlVersion.OPENGL_43)
-	{
-		d.header_vs = "#version 330\n#define POS vertexPosition\n#define TEXTURE texture\n";
-		d.header_fs = "#version 330\n#define TEXTURE texture\n";
-		d.attr = "in"; d.vary_out = "out"; d.vary_in = "in"; d.frag = "out";
-	}
-	else if (ver == RLGlVersion.OPENGL_ES_30)
-	{
-		d.header_vs = "#version 300 es\n#define POS vertexPosition\n#define TEXTURE texture\n";
-		d.header_fs = "#version 300 es\nprecision highp float;\nprecision highp int;\n#define TEXTURE texture\n";
-		d.attr = "in"; d.vary_out = "out"; d.vary_in = "in"; d.frag = "out";
-	}
-	else if (ver == RLGlVersion.OPENGL_ES_20)
-	{
-		d.header_vs = "#version 100\n#define POS vertexPosition\n#define TEXTURE texture2D\n";
-		d.header_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define COLOR gl_FragColor\n#define TEXTURE texture2D\n";
-		d.attr = "attribute"; d.vary_out = "varying"; d.vary_in = "varying"; d.frag = "//";
-	}
-	else if (ver == RLGlVersion.OPENGL_21)
-	{
-		d.header_vs = "#version 120\n#define POS vertexPosition\n#define TEXTURE texture2D\n";
-		d.header_fs = "#version 120\n#define COLOR gl_FragColor\n#define TEXTURE texture2D\n";
-		d.attr = "attribute"; d.vary_out = "varying"; d.vary_in = "varying"; d.frag = "//";
-	}
-	else
-	{
-		rl::trace_log(ERROR, "RLM: shaders are not available on this OpenGL version");
-		return UNSUPPORTED_GL~;
-	}
-	return d;
-}
+		case OPENGL_33:
+		case OPENGL_43:
+			return { .vert = SHADER_HEADER_VERT_GL33, .frag = SHADER_HEADER_FRAG_GL33 };
 
-fn String apply_tags(String src, String attr, String vary, String frag) @local
-{
-	return src
-		.treplace("<ATTR>", attr)
-		.treplace("<VARY>", vary)
-		.treplace("<FRAG>", frag);
+		case OPENGL_ES_20:
+			return { .vert = SHADER_HEADER_VERT_ES20, .frag = SHADER_HEADER_FRAG_ES20 };
+
+		case OPENGL_ES_30:
+			return { .vert = SHADER_HEADER_VERT_ES30, .frag = SHADER_HEADER_FRAG_ES30 };
+	}
+
+	rl::trace_log(ERROR, "RLM: unsupported OpenGL version: %d", ver);
+	return UNSUPPORTED_GL~;
 }
 
 fn String expand_includes(String code) @local
@@ -519,3 +493,95 @@ const MAIN_VERT @local = $embed("./glsl/main.vert");
 const MAIN_FRAG @local = $embed("./glsl/main.frag");
 
 const String USER_MARKER @local = "//@USER_CODE";
+
+// ================================
+// Local: OpenGL 2.1
+// ================================
+
+const String SHADER_HEADER_VERT_GL21 @local = `#version 120
+#define ATTR attribute
+#define VARY varying
+#define TEXTURE_2D texture2D
+#define TEXTURE_CUBE textureCube
+#define HIGHP
+#define MEDIUMP
+#define LOWP`;
+
+const String SHADER_HEADER_FRAG_GL21 @local = `#version 120
+#define VARY varying
+#define FRAG_COLOR gl_FragColor
+#define TEXTURE_2D texture2D
+#define TEXTURE_CUBE textureCube
+#define HIGHP
+#define MEDIUMP
+#define LOWP`;
+
+// ================================
+// Local: OpenGL 3.3 / 4.3
+// ================================
+
+const String SHADER_HEADER_VERT_GL33 @local = `#version 330
+#define ATTR in
+#define VARY out
+#define TEXTURE_2D texture
+#define TEXTURE_CUBE texture
+#define HIGHP
+#define MEDIUMP
+#define LOWP`;
+
+const String SHADER_HEADER_FRAG_GL33 @local = `#version 330
+#define VARY in
+layout(location = 0) out vec4 FRAG_COLOR;
+#define TEXTURE_2D texture
+#define TEXTURE_CUBE texture
+#define HIGHP
+#define MEDIUMP
+#define LOWP`;
+
+// ================================
+// Local: OpenGL ES 2.0 / WebGL 1
+// ================================
+
+const String SHADER_HEADER_VERT_ES20 @local = `#version 100
+#define ATTR attribute
+#define VARY varying
+#define TEXTURE_2D texture2D
+#define TEXTURE_CUBE textureCube
+#define HIGHP highp
+#define MEDIUMP mediump
+#define LOWP lowp`;
+
+const String SHADER_HEADER_FRAG_ES20 @local = `#version 100
+#define VARY varying
+#define FRAG_COLOR gl_FragColor
+#define TEXTURE_2D texture2D
+#define TEXTURE_CUBE textureCube
+#define HIGHP highp
+#define MEDIUMP mediump
+#define LOWP lowp`;
+
+// ================================
+// Local: OpenGL ES 3.0 / WebGL 2
+// ================================
+
+const String SHADER_HEADER_VERT_ES30 @local = `#version 300 es
+#define ATTR in
+#define VARY out
+#define TEXTURE_2D texture
+#define TEXTURE_CUBE texture
+#define HIGHP highp
+#define MEDIUMP mediump
+#define LOWP lowp`;
+
+const String SHADER_HEADER_FRAG_ES30 @local = `#version 300 es
+#define VARY in
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+layout(location = 0) out highp vec4 FRAG_COLOR;
+#else
+layout(location = 0) out mediump vec4 FRAG_COLOR;
+#endif
+#define TEXTURE_2D texture
+#define TEXTURE_CUBE texture
+#define HIGHP highp
+#define MEDIUMP mediump
+#define LOWP lowp`;
