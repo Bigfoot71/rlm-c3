@@ -56,7 +56,7 @@ fn RLMShader? load_shader(String file_path) => @pool()
 	ZString code = rl::load_file_text(file_path.zstr_tcopy());
 	if ((char*)code == null)
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: cannot read shader file '%s'", file_path);
+		rl::trace_log(ERROR, "RLM: cannot read shader file '%s'", file_path);
 		return SHADER_FILE_NOT_FOUND~;
 	}
 	defer rl::unload_file_text(code);
@@ -81,12 +81,12 @@ fn RLMShader*? RLMShader.init(&self, String code) => @pool()
 
 	if (!has_function(code, "Sd", "scene"))
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: user shader must define 'Sd scene(vec3 p)'");
+		rl::trace_log(ERROR, "RLM: user shader must define 'Sd scene(vec3 p)'");
 		return MISSING_SCENE~;
 	}
 	if (!has_function(code, "vec4", "shade"))
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: user shader must define 'vec4 shade(...)'");
+		rl::trace_log(ERROR, "RLM: user shader must define 'vec4 shade(...)'");
 		return MISSING_SHADE~;
 	}
 
@@ -95,7 +95,7 @@ fn RLMShader*? RLMShader.init(&self, String code) => @pool()
 
 	if (!main_frag.contains(USER_MARKER))
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: built-in main.frag has no '%s' marker", USER_MARKER);
+		rl::trace_log(ERROR, "RLM: built-in main.frag has no '%s' marker", USER_MARKER);
 		return COMPILE_FAILED~;
 	}
 
@@ -115,7 +115,7 @@ fn RLMShader*? RLMShader.init(&self, String code) => @pool()
 	self.id = rl::gl_load_shader_program(vs.zstr_view(), fs.zstr_view());
 	if (self.id == 0)
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: shader compilation failed");
+		rl::trace_log(ERROR, "RLM: shader compilation failed");
 		return COMPILE_FAILED~;
 	}
 
@@ -154,7 +154,7 @@ fn void RLMShader.set_value_raw(&self, String name, typeid kind, void* src, sz s
 	{
 		if (u.kind != kind)
 		{
-			rl::trace_log(RLTraceLogLevel.ERROR, "RLM: uniform '%s' changed type after its first set_value()", name);
+			rl::trace_log(ERROR, "RLM: uniform '%s' changed type after its first set_value()", name);
 			return;
 		}
 		if (mem::equals(self.data + u.offset, (char*)src, size)) return;
@@ -164,7 +164,7 @@ fn void RLMShader.set_value_raw(&self, String name, typeid kind, void* src, sz s
 		int gl_type = uniform_type_of(kind);
 		if (gl_type < 0)
 		{
-			rl::trace_log(RLTraceLogLevel.ERROR, "RLM: unsupported type for uniform '%s'", name);
+			rl::trace_log(ERROR, "RLM: unsupported type for uniform '%s'", name);
 			return;
 		}
 		u.kind    = kind;
@@ -198,7 +198,7 @@ fn void RLMShader.set_value_texture(&self, String name, uint tex_id)
 	{
 		if (self.sampler_count >= MAX_SAMPLERS)
 		{
-			rl::trace_log(RLTraceLogLevel.ERROR, "RLM: no texture unit left for sampler '%s'", name);
+			rl::trace_log(ERROR, "RLM: no texture unit left for sampler '%s'", name);
 			return;
 		}
 		int slot  = FIRST_TEXTURE_SLOT + self.sampler_count;
@@ -317,7 +317,7 @@ fn RLMUniform* get_uniform(RLMShader* shader, String name) @local
 	};
 	if (u.loc < 0)
 	{
-		rl::trace_log(RLTraceLogLevel.WARNING, "RLM: uniform '%s' not found (absent or optimized out)", name);
+		rl::trace_log(WARNING, "RLM: uniform '%s' not found (absent or optimized out)", name);
 	}
 
 	shader.uniforms.set(name, u);
@@ -369,7 +369,7 @@ fn Dialect? get_dialect() @local
 	}
 	else
 	{
-		rl::trace_log(RLTraceLogLevel.ERROR, "RLM: shaders are not available on this OpenGL version");
+		rl::trace_log(ERROR, "RLM: shaders are not available on this OpenGL version");
 		return UNSUPPORTED_GL~;
 	}
 	return d;
@@ -399,18 +399,17 @@ fn String expand_includes(String code) @local
 		}
 
 		String name = include_name(t);
-		if (name == "math.glsl")
+		switch (name)
 		{
-			out.append(INC_MATH_GLSL);
+			case "math.glsl": out.append(INC_MATH_GLSL);
+			case "op.glsl":   out.append(INC_OP_GLSL);
+			case "sd.glsl":   out.append(INC_SD_GLSL);
+			case "sf.glsl":   out.append(INC_SF_GLSL);
+			case "sh.glsl":   out.append(INC_SH_GLSL);
+			default:
+				rl::trace_log(WARNING, "RLM: unknown #include \"%s\" ignored", name);
 		}
-		else if (name == "shading.glsl")
-		{
-			out.append(INC_SHADING_GLSL);
-		}
-		else
-		{
-			rl::trace_log(RLTraceLogLevel.WARNING, "RLM: unknown #include \"%s\" ignored", name);
-		}
+
 		out.append_char('\n');
 	}
 	return out.str_view();
@@ -510,8 +509,11 @@ fn bool has_function(String code, String ret_type, String name) @local => @pool(
 // Local: Buil-In Shaders
 // ================================
 
-const INC_SHADING_GLSL @local = $embed("./glsl/include/shading.glsl");
-const INC_MATH_GLSL    @local = $embed("./glsl/include/math.glsl");
+const INC_MATH_GLSL @local = $embed("./glsl/include/math.glsl");
+const INC_OP_GLSL   @local = $embed("./glsl/include/op.glsl");
+const INC_SD_GLSL   @local = $embed("./glsl/include/sd.glsl");
+const INC_SF_GLSL   @local = $embed("./glsl/include/sf.glsl");
+const INC_SH_GLSL   @local = $embed("./glsl/include/sh.glsl");
 
 const MAIN_VERT @local = $embed("./glsl/main.vert");
 const MAIN_FRAG @local = $embed("./glsl/main.frag");

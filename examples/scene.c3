@@ -43,21 +43,15 @@ fn int main()
 }
 
 const SHADER = `
+#include <sd.glsl>
+#include <sf.glsl>
+
 Sd scene(vec3 p)
 {
     return sdSphere(p, 1.0, 1);
 }
 
-vec3 sceneNormal(vec3 p)
-{
-    vec2 e = vec2(0.001, 0.0);
-
-    return normalize(vec3(
-        scene(p + e.xyy).d - scene(p - e.xyy).d,
-        scene(p + e.yxy).d - scene(p - e.yxy).d,
-        scene(p + e.yyx).d - scene(p - e.yyx).d
-    ));
-}
+SF_NORMAL_TETRAHEDRON(sceneNormal, scene);
 
 vec4 shade(Ray ray, Hit hit, float cone)
 {
@@ -68,7 +62,7 @@ vec4 shade(Ray ray, Hit hit, float cone)
         return vec4(sky, 1.0);
     }
 
-    vec3  n    = sceneNormal(hit.pos);
+    vec3  n    = sceneNormal(hit.pos, 0.001);
     vec3  l    = normalize(vec3(0.6, 0.8, 0.4));
     float diff = max(dot(n, l), 0.0);
     float amb  = 0.15 + 0.15 * n.y;
