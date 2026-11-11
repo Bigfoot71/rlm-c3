@@ -29,8 +29,8 @@ uniform float     BEAM_TILE;      // tile size in pixels
 
 uniform vec3      CAM_POS;
 uniform vec3      CAM_FWD;
-uniform vec3      CAM_RIGHT;      // already scaled by aspect * tan(fov/2)
-uniform vec3      CAM_UP;         // already scaled by tan(fov/2)
+uniform vec3      CAM_RIGHT;      // pre-scaled by aspect * tan(fov/2)
+uniform vec3      CAM_UP;         // pre-scaled by tan(fov/2)
 uniform float     CAM_FAR;
 
 uniform float     CONE;           // pixel footprint per unit of distance
@@ -123,8 +123,7 @@ float unpackFloat(vec4 c)
 Ray makeRay(vec2 pix)
 {
     vec2 ndc = pix * (2.0 / RES) - 1.0;
-    vec3 dir = CAM_FWD + CAM_RIGHT * ndc.x + CAM_UP * ndc.y;
-    return Ray(CAM_POS, normalize(dir));
+    return Ray(CAM_POS, normalize(CAM_FWD + CAM_RIGHT * ndc.x + CAM_UP * ndc.y));
 }
 
 // ================================
