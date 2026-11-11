@@ -56,6 +56,14 @@ struct Hit
     int   mat;    // material id at the hit
     int   steps;  // iterations used (debug)
     vec3  pos;    // ray.origin + ray.dir * dist
+    float cov;    // weight of this shading in the final pixel
+};
+
+struct Graze   // near miss (SDF value r at distance t)
+{
+    float r;
+    float t;
+    int   m;
 };
 
 struct Sd
@@ -98,6 +106,25 @@ struct Sd
 #   define SRGB_OUTPUT 1
 #endif
 
+#ifndef EDGE_AA
+#   define EDGE_AA 1
+#endif
+
+#if EDGE_AA
+#   ifndef EDGE_AA_MIN_COV
+#      define EDGE_AA_MIN_COV 0.02  // below this the edge is not worth a second shading
+#   endif
+#   ifndef EDGE_AA_HIT
+#       define EDGE_AA_HIT 0.25     // hit within this fraction of the pixel footprint
+#   endif
+#   ifndef EDGE_AA_RAMP
+#       define EDGE_AA_RAMP 1.5     // coverage reaches 0 at this many footprints
+#   endif
+#else
+#   define EDGE_AA_HIT  1.0
+#   define EDGE_AA_RAMP 0.0
+#endif
+
 // ================================
 // Beam texture packing
 // ================================
@@ -134,66 +161,97 @@ float marchBeam(Ray ray)
 {
     // safe start distance for a whole tile
 
-    float t      = 0.0;
-    float result = CAM_FAR;
-    bool  alive  = true;
-    float inv    = 1.0 / (1.0 + BEAM_CONE);
+    float cone = BEAM_CONE + EDGE_AA_RAMP * CONE;
+    float inv  = 1.0 / (1.0 + cone);
+    float t    = 0.0;
 
     for (int i = 0; i < BEAM_STEPS; i++)
     {
-        if (!alive) break;
-
+        float margin = t * cone + EPS;
         float r      = scene(ray.origin + ray.dir * t).d;
-        float margin = t * BEAM_CONE + EPS;
 
-        if (r <= margin)
-        {
-            result = t * BEAM_SAFETY;
-            alive  = false;
-            break;
-        }
+        if (r <= margin) break;
 
         t += (r - margin) * inv;
 
-        if (t >= CAM_FAR) alive = false;
+        if (t >= CAM_FAR) return CAM_FAR;
     }
 
-    return alive ? t * BEAM_SAFETY : result;
+    return t * BEAM_SAFETY;
 }
+
+// ================================
+// Edge Anti-Aliasing
+// ================================
+
+const Graze NO_GRAZE = Graze(1.0e9, 1.0, 0);
+
+#if EDGE_AA
+
+bool closer(Graze a, Graze b)
+{
+    return a.r * b.t < b.r * a.t;
+}
+
+void trackGraze(inout Graze prev, inout Graze best, Graze s)
+{
+    if (!closer(s, prev) && closer(prev, best)) best = prev;
+    prev = s;
+}
+
+float grazeCoverage(Graze g)
+{
+    float q = g.r / max(g.t * CONE, 1.0e-6); // in pixel footprints
+    return clamp((EDGE_AA_RAMP - q) / (EDGE_AA_RAMP - EDGE_AA_HIT), 0.0, 1.0);
+}
+
+Hit grazeHit(Ray ray, Hit base, Graze g, float cov)
+{
+    Hit h = base;
+    h.hit  = true;
+    h.dist = g.t;
+    h.d    = g.r;
+    h.mat  = g.m;
+    h.pos  = ray.origin + ray.dir * g.t;
+    h.cov  = cov;
+    return h;
+}
+
+#endif // EDGE_AA
 
 // ================================
 // March
 // ================================
 
-Hit march(Ray ray, float t0)
+Hit march(Ray ray, float t0, out Graze gz)
 {
     // sphere tracing with over relaxation
 
-    Hit h;
-    h.hit   = false;
-    h.dist  = CAM_FAR;
-    h.d     = 0.0;
-    h.mat   = 0;
-    h.steps = 0;
+    Hit h = Hit(false, CAM_FAR, 0.0, 0, 0, vec3(0.0), 1.0);
 
     float t     = min(t0, CAM_FAR);
-    float stp   = 0.0;   // last step actually taken
-    float prevR = 0.0;   // last SDF value kept as reference
+    float stp   = 0.0;
+    float prevR = 0.0;
     float omega = OMEGA0;
+
+    gz = NO_GRAZE;
+
+#if EDGE_AA
+    Graze prev = NO_GRAZE;
+#endif
 
     for (int i = 0; i < MAX_STEPS; i++)
     {
         if (t >= CAM_FAR) break;
 
-        Sd    s    = scene(ray.origin + ray.dir * t);
-        float r    = s.d;
-        float foot = t * CONE;
+        Sd    s = scene(ray.origin + ray.dir * t);
+        float r = s.d;
 
         bool back = omega > 1.0 && (r + prevR) < stp;
 
         h.steps = i + 1;
 
-        if (!back && r < max(EPS, foot))
+        if (!back && r < max(EPS, t * CONE * EDGE_AA_HIT))
         {
             h.hit  = true;
             h.dist = t;
@@ -204,18 +262,24 @@ Hit march(Ray ray, float t0)
 
         if (back)
         {
-            t     += prevR - stp;
-            stp    = prevR;
-            omega  = 1.0;
+            t    += prevR - stp;
+            stp   = prevR;
+            omega = 1.0;
         }
         else
         {
-            float ns = r * omega;
-            t     += ns;
-            stp    = ns;
-            prevR  = r;
+        #if EDGE_AA
+            trackGraze(prev, gz, Graze(r, t, s.mat));
+        #endif
+            stp   = r * omega;
+            t    += stp;
+            prevR = r;
         }
     }
+
+#if EDGE_AA
+    if (!h.hit) trackGraze(prev, gz, NO_GRAZE);
+#endif
 
     h.pos = ray.origin + ray.dir * h.dist;
     return h;
@@ -227,31 +291,48 @@ Hit march(Ray ray, float t0)
 
 void main()
 {
-    if (CURRENT_PASS == 0) // BEAM PASS
+    if (CURRENT_PASS == 0)
     {
         vec2 tile = floor(UV * BEAM_RES);
-        vec2 pix  = (tile + 0.5) * BEAM_TILE;
+        float t0  = marchBeam(makeRay((tile + 0.5) * BEAM_TILE));
 
-        float t0 = marchBeam(makeRay(pix));
-
-        FRAG_COLOR = packFloat(clamp(t0 / CAM_FAR, 0.0, 1.0) * PACK_SCALE);
+        FRAG_COLOR = packFloat(t0 / CAM_FAR * PACK_SCALE);
     }
     else
-    if (CURRENT_PASS == 1) // SHADING PASS
     {
         vec2 pix  = UV * RES;
         vec2 tile = min(floor(pix / BEAM_TILE), BEAM_RES - 1.0);
-        vec2 buv  = (tile + 0.5) / BEAM_TEX_SIZE;
+        float t0  = unpackFloat(TEXTURE_2D(BEAM_TEX, (tile + 0.5) / BEAM_TEX_SIZE)) / PACK_SCALE * CAM_FAR;
 
-        float t0 = unpackFloat(TEXTURE_2D(BEAM_TEX, buv)) / PACK_SCALE * CAM_FAR;
+        Ray   ray = makeRay(pix);
+        Graze gz;
+        Hit   hit = march(ray, t0, gz);
 
-        Ray ray = makeRay(pix);
-        Hit hit = march(ray, t0);
+    #if EDGE_AA
+        float gcov = grazeCoverage(gz);
+        hit.cov = 1.0 - gcov;
 
-        FRAG_COLOR = shade(ray, hit, CONE);
+        Hit  cur = hit;
+        vec4 col = vec4(0.0);
 
-        #if SRGB_OUTPUT == 1
-            FRAG_COLOR.rgb = sqrt(max(FRAG_COLOR.rgb, 0.0));
-        #endif
+        for (int k = 0; k < 2; k++)
+        {
+            vec4 c = shade(ray, cur, CONE);
+
+            col = (k == 0) ? c : mix(col, c, gcov);
+
+            if (gcov <= EDGE_AA_MIN_COV) break;
+
+            cur = grazeHit(ray, hit, gz, gcov);
+        }
+    #else
+        vec4 col = shade(ray, hit, CONE);
+    #endif
+
+    #if SRGB_OUTPUT
+        col.rgb = sqrt(max(col.rgb, 0.0));
+    #endif
+
+        FRAG_COLOR = col;
     }
 }
