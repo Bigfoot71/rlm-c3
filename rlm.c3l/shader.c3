@@ -103,15 +103,11 @@ fn RLMShader*? RLMShader.init(&self, String code) => @pool()
 	ShaderHeaders h = get_headers(ver)!;
 
 	DString vs = dstring::temp_with_capacity(h.vert.len + main_vert.len + 2);
-	vs.append(h.vert);
-	vs.append_char('\n');
-	vs.append(main_vert);
+	vs.appendf("%s\n%s", h.vert, main_vert);
 
 	String fs_body = main_frag.treplace(USER_MARKER, expand_includes(code));
 	DString fs = dstring::temp_with_capacity(h.frag.len + fs_body.len + 2);
-	fs.append(h.frag);
-	fs.append_char('\n');
-	fs.append(fs_body);
+	fs.appendf("%s\n%s", h.frag, fs_body);
 
 	self.id = rl::gl_load_shader_program(vs.zstr_view(), fs.zstr_view());
 	if (self.id == 0)
