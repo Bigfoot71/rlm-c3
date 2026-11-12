@@ -93,10 +93,15 @@ fn RLTexture render(RLMShader* shader, RLCamera3D camera, RLRectangle viewport =
 
 fn void present(RLMShader* shader, RLCamera3D camera, RLRectangle viewport = {}, float far = 100.0f)
 {
-	viewport = resolve_viewport(viewport);
-
 	float sw = (float)rl::get_screen_width();
 	float sh = (float)rl::get_screen_height();
+
+	if (viewport.width <= 0.0f && viewport.height <= 0.0f)
+	{
+		viewport = present_viewport(sw, sh);
+	}
+
+	viewport = resolve_viewport(viewport);
 
 	RLTexture texture = render(shader, camera, viewport, sw / sh, far);
 
@@ -231,6 +236,21 @@ fn RLRectangle resolve_viewport(RLRectangle viewport) @local
 	viewport.height = viewport.height <= 0.0f ? rh - viewport.y : math::min(math::floor(viewport.height), rh - viewport.y);
 
 	return viewport;
+}
+
+fn RLRectangle present_viewport(float sw, float sh) @local
+{
+	float rw = (float)ctx.rt.texture.width;
+	float rh = (float)ctx.rt.texture.height;
+
+	float s = math::min(1.0f, math::min(rw / sw, rh / sh));
+
+	return {
+		.x      = 0.0f,
+		.y      = 0.0f,
+		.width  = math::max(1.0f, math::floor(sw * s)),
+		.height = math::max(1.0f, math::floor(sh * s)),
+	};
 }
 
 fn RLRectangle tile_viewport(RLRectangle viewport) @local
